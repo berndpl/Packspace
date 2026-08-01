@@ -1,47 +1,99 @@
-import { Canvas } from '@react-three/fiber';
-import { CameraControls, Grid } from '@react-three/drei';
-import * as THREE from 'three';
+import { useRef, useState } from 'react';
+import type { CameraControls as CameraControlsRef } from '@react-three/drei';
+import { PackspaceScene, snapCamera, type CameraView } from './scene/PackspaceScene';
+import type { DimensionsCm } from './scene/measurements';
 
-const PLACEHOLDER_BOX = new THREE.BoxGeometry(0.4, 0.32, 0.23);
+const DEFAULT_OBJECT: DimensionsCm = {
+  width: 40,
+  height: 55,
+  depth: 23,
+};
 
-/**
- * Scaffold placeholder. It exists to prove the deploy pipeline and the three
- * drei pieces the visual language depends on — CameraControls (orbit/pan plus
- * snap-to-view) and Grid. The real scene is built in issue #10.
- */
+const VIEWS: ReadonlyArray<{ id: CameraView; label: string }> = [
+  { id: 'front', label: 'Front' },
+  { id: 'side', label: 'Side' },
+  { id: 'top', label: 'Top' },
+  { id: 'free', label: 'Free' },
+];
+
 export function App() {
-  return (
-    <div style={{ position: 'fixed', inset: 0 }}>
-      <Canvas camera={{ position: [2, 1.5, 2.4], fov: 38 }}>
-        <color attach="background" args={['#0a1622']} />
-        <Grid
-          args={[4, 4]}
-          cellSize={0.1}
-          cellColor="#2a4a63"
-          sectionSize={0.5}
-          sectionColor="#5ad2ff"
-          fadeDistance={9}
-          infiniteGrid
-        />
-        <mesh position={[0, 0.16, 0]}>
-          <boxGeometry args={[0.4, 0.32, 0.23]} />
-          <meshBasicMaterial color="#5ad2ff" transparent opacity={0.16} />
-        </mesh>
-        <lineSegments position={[0, 0.16, 0]}>
-          <edgesGeometry args={[PLACEHOLDER_BOX]} />
-          <lineBasicMaterial color="#5ad2ff" />
-        </lineSegments>
-        <CameraControls makeDefault />
-      </Canvas>
+  const controlsRef = useRef<CameraControlsRef>(null);
+  const [dimensions, setDimensions] = useState(DEFAULT_OBJECT);
+  const [activeView, setActiveView] = useState<CameraView>('free');
 
-      <div style={{ position: 'fixed', left: 20, top: 18, maxWidth: 340, lineHeight: 1.5 }}>
-        <div style={{ fontSize: 11, letterSpacing: '.14em', opacity: 0.55 }}>PACKSPACE</div>
-        <div style={{ fontSize: 15, margin: '2px 0 10px' }}>Scaffold is live.</div>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>
-          React + Vite + react-three-fiber + drei, deployed to GitHub Pages. Drag to orbit. The real
-          scene lands in <em>Build the 3D scene shell</em>.
-        </div>
-      </div>
-    </div>
+  const updateDimension = (key: keyof DimensionsCm, rawValue: string) => {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) return;
+
+    setDimensions((current) => ({
+      ...current,
+      [key]: Math.min(300, Math.max(1, value)),
+    }));
+  };
+
+  const changeView = (view: CameraView) => {
+    setActiveView(view);
+    void snapCamera(controlsRef.current, view);
+  };
+
+  return (
+    <main className="app-shell">
+      <PackspaceScene
+        controlsRef={controlsRef}
+        object={{
+          name: 'Example object',
+          dimensions,
+        }}
+      />
+
+      <section className="scene-info" aria-label="Scene information">
+        <p className="eyebrow">Packspace / empty space</p>
+        <h1>Read the size from any angle.</h1>
+        <p className="scene-description">
+          The blueprint shell uses one world unit per metre. Every value you enter stays in
+          centimetres and is converted at the scene boundary.
+        </p>
+
+        <fieldset className="dimension-controls">
+          <legend>Object dimensions</legend>
+          {(
+            [
+              ['width', 'W'],
+              ['height', 'H'],
+              ['depth', 'D'],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key}>
+              <span>{label}</span>
+              <input
+                aria-label={`${key} in centimetres`}
+                type="number"
+                min="1"
+                max="300"
+                step="1"
+                value={dimensions[key]}
+                onChange={(event) => updateDimension(key, event.target.value)}
+              />
+              <span className="unit">cm</span>
+            </label>
+          ))}
+        </fieldset>
+      </section>
+
+      <nav className="view-controls" aria-label="Camera views">
+        {VIEWS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={activeView === id}
+            onClick={() => changeView(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      <p className="orbit-hint">Drag to orbit · Shift-drag to pan · Scroll to zoom</p>
+    </main>
   );
 }
