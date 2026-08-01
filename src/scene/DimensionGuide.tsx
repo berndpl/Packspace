@@ -1,5 +1,7 @@
 import { Billboard, Line, Text } from '@react-three/drei';
 import * as THREE from 'three';
+import type { Confidence } from '../domain/payload';
+import { confidenceLineProps } from './confidenceStyle';
 
 type Point3 = readonly [number, number, number];
 
@@ -10,6 +12,7 @@ interface DimensionGuideProps {
   color?: string;
   labelOffset?: Point3;
   tickLength?: number;
+  confidence?: Confidence;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -25,6 +28,7 @@ export function DimensionGuide({
   color = '#5ad2ff',
   labelOffset = [0, 0, 0],
   tickLength = 0.025,
+  confidence = 'published',
 }: DimensionGuideProps) {
   const startVector = vector(start);
   const endVector = vector(end);
@@ -41,16 +45,23 @@ export function DimensionGuide({
     .add(endVector)
     .multiplyScalar(0.5)
     .add(vector(labelOffset));
+  const linePattern = confidenceLineProps(confidence);
 
   return (
     <group>
-      <Line points={[startVector, endVector]} color={color} lineWidth={1} />
+      <Line
+        points={[startVector, endVector]}
+        color={color}
+        lineWidth={1}
+        {...linePattern}
+      />
       {[startVector, endVector].map((point, index) => (
         <Line
           key={index}
           points={[point.clone().sub(tick), point.clone().add(tick)]}
           color={color}
           lineWidth={1}
+          {...linePattern}
         />
       ))}
       <Billboard position={midpoint} follow>

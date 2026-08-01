@@ -3,13 +3,20 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { DimensionGuide } from './DimensionGuide';
 import { dimensionsToWorld, type DimensionsCm } from './measurements';
+import type { Position3 } from '../domain/spaces';
 
 export interface SceneObject {
   name: string;
   dimensions: DimensionsCm;
 }
 
-export function ObjectBox({ object }: { object: SceneObject }) {
+export function ObjectBox({
+  object,
+  basePosition = [0, 0, 0],
+}: {
+  object: SceneObject;
+  basePosition?: Position3;
+}) {
   const { dimensions } = object;
   const world = dimensionsToWorld(dimensions);
   const geometry = useMemo(
@@ -31,7 +38,7 @@ export function ObjectBox({ object }: { object: SceneObject }) {
   const guideGap = 0.08;
 
   return (
-    <group>
+    <group position={basePosition}>
       <mesh position-y={world.height / 2} geometry={geometry}>
         <meshStandardMaterial color="#5ad2ff" transparent opacity={0.15} roughness={0.75} />
       </mesh>
@@ -53,22 +60,22 @@ export function ObjectBox({ object }: { object: SceneObject }) {
       </Billboard>
 
       <DimensionGuide
-        start={[-halfWidth, 0, halfDepth + guideGap]}
-        end={[halfWidth, 0, halfDepth + guideGap]}
+        start={[-halfWidth, 0, -halfDepth - guideGap]}
+        end={[halfWidth, 0, -halfDepth - guideGap]}
         label={`${dimensions.width} cm`}
         labelOffset={[0, -0.055, 0]}
       />
       <DimensionGuide
-        start={[halfWidth + guideGap, 0, halfDepth]}
-        end={[halfWidth + guideGap, world.height, halfDepth]}
+        start={[-halfWidth - guideGap, 0, -halfDepth]}
+        end={[-halfWidth - guideGap, world.height, -halfDepth]}
         label={`${dimensions.height} cm`}
-        labelOffset={[0.07, 0, 0]}
+        labelOffset={[-0.07, 0, 0]}
       />
       <DimensionGuide
-        start={[-halfWidth - guideGap, 0, -halfDepth]}
-        end={[-halfWidth - guideGap, 0, halfDepth]}
+        start={[halfWidth + guideGap, 0, -halfDepth]}
+        end={[halfWidth + guideGap, 0, halfDepth]}
         label={`${dimensions.depth} cm`}
-        labelOffset={[-0.07, 0, 0]}
+        labelOffset={[0.07, 0, 0]}
       />
     </group>
   );

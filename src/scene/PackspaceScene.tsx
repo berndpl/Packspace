@@ -2,32 +2,21 @@ import { CameraControls, Grid } from '@react-three/drei';
 import type { CameraControls as CameraControlsRef } from '@react-three/drei';
 import { Canvas } from '@react-three/fiber';
 import { useEffect, type RefObject } from 'react';
+import type {
+  CameraView,
+  SceneFraming,
+  SpaceDefinition,
+} from '../domain/spaces';
 import { HumanReference } from './HumanReference';
 import { ObjectBox, type SceneObject } from './ObjectBox';
+import { SpaceVolume } from './SpaceVolume';
 
-type Position3 = readonly [number, number, number];
-
-export type CameraView = 'front' | 'side' | 'top' | 'free';
-
-export interface SceneFraming {
-  target: Position3;
-  views: Readonly<Record<CameraView, Position3>>;
-}
-
-const DEFAULT_FRAMING: SceneFraming = {
-  target: [0, 0.85, 0],
-  views: {
-    front: [0, 0.85, 3.2],
-    side: [3.2, 0.85, 0],
-    top: [0.001, 3.65, 0],
-    free: [2.2, 1.55, 2.55],
-  },
-};
+export type { CameraView } from '../domain/spaces';
 
 export async function snapCamera(
   controls: CameraControlsRef | null,
   view: CameraView,
-  framing: SceneFraming = DEFAULT_FRAMING,
+  framing: SceneFraming,
 ) {
   if (!controls) return;
 
@@ -82,13 +71,15 @@ function CameraRig({ controlsRef, framing }: CameraRigProps) {
 interface PackspaceSceneProps {
   controlsRef: RefObject<CameraControlsRef | null>;
   object: SceneObject | null;
+  space: SpaceDefinition;
   framing?: SceneFraming;
 }
 
 export function PackspaceScene({
   controlsRef,
   object,
-  framing = DEFAULT_FRAMING,
+  space,
+  framing = space.framing,
 }: PackspaceSceneProps) {
   return (
     <Canvas
@@ -123,7 +114,8 @@ export function PackspaceScene({
       />
 
       <HumanReference />
-      {object && <ObjectBox object={object} />}
+      <SpaceVolume space={space} />
+      {object && <ObjectBox object={object} basePosition={space.placement} />}
       <CameraRig controlsRef={controlsRef} framing={framing} />
     </Canvas>
   );

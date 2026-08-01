@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CameraControls as CameraControlsRef } from '@react-three/drei';
 import {
   parsePayloadFragment,
@@ -8,7 +8,15 @@ import {
   type PackspacePayload,
   type PayloadError,
 } from './domain/payload';
+import {
+  SPACE_CATALOG,
+  getSpace,
+  resolveSpaceId,
+  type SpaceId,
+} from './domain/spaces';
+import { SpaceEvidencePanel } from './components/SpaceEvidencePanel';
 import { PackspaceScene, snapCamera, type CameraView } from './scene/PackspaceScene';
+import { narrowViewportFraming } from './scene/framing';
 
 const DEFAULT_PAYLOAD: PackspacePayload = {
   schema: 'packspace.object/1',
@@ -25,6 +33,7 @@ const VIEWS: ReadonlyArray<{ id: CameraView; label: string }> = [
   { id: 'top', label: 'Top' },
   { id: 'free', label: 'Free' },
 ];
+const SPACE_CATEGORIES = ['Reference', 'Shinkansen', 'Plane'] as const;
 
 interface PayloadState {
   payload: PackspacePayload | null;
@@ -57,6 +66,21 @@ function payloadStateFromHash(hash: string): PayloadState {
   };
 }
 
+function useNarrowViewport() {
+  const [narrow, setNarrow] = useState(() =>
+    window.matchMedia('(max-width: 680px)').matches,
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 680px)');
+    const update = () => setNarrow(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+
+  return narrow;
+}
+
 export function App() {
   const controlsRef = useRef<CameraControlsRef>(null);
   const initial = payloadStateFromHash(window.location.hash);
@@ -67,6 +91,18 @@ export function App() {
   const [editorOpen, setEditorOpen] = useState(initial.payload === null);
   const [copyStatus, setCopyStatus] = useState('');
   const [activeView, setActiveView] = useState<CameraView>('free');
+  const [selectedSpaceId, setSelectedSpaceId] = useState<SpaceId>(
+    resolveSpaceId(initial.environment),
+  );
+  const selectedSpace = getSpace(selectedSpaceId);
+  const narrowViewport = useNarrowViewport();
+  const sceneFraming = useMemo(
+    () =>
+      narrowViewport
+        ? narrowViewportFraming(selectedSpace.framing)
+        : selectedSpace.framing,
+    [narrowViewport, selectedSpace],
+  );
 
   useEffect(() => {
     const loadHash = () => {
@@ -75,6 +111,8 @@ export function App() {
       setJsonText(next.payload ? payloadToJson(next.payload) : '');
       setEditorOpen(next.payload === null);
       setCopyStatus('');
+      setSelectedSpaceId(resolveSpaceId(next.environment));
+      setActiveView('free');
     };
 
     window.addEventListener('hashchange', loadHash);
@@ -83,7 +121,26 @@ export function App() {
 
   const changeView = (view: CameraView) => {
     setActiveView(view);
-    void snapCamera(controlsRef.current, view);
+    void snapCamera(controlsRef.current, view, sceneFraming);
+  };
+
+  const changeSpace = (spaceId: SpaceId) => {
+    setSelectedSpaceId(spaceId);
+    setActiveView('free');
+    setCopyStatus('');
+    setPayloadState((current) => ({
+      ...current,
+      environment: spaceId,
+      status: `Showing ${getSpace(spaceId).name}.`,
+    }));
+
+    if (payloadState.payload) {
+      window.history.replaceState(
+        null,
+        '',
+        payloadToUrl(payloadState.payload, spaceId, window.location.href),
+      );
+    }
   };
 
   const loadJson = () => {
@@ -91,7 +148,7 @@ export function App() {
     if (!result.ok) {
       setPayloadState({
         payload: null,
-        environment: payloadState.environment,
+        environment: selectedSpaceId,
         error: result.error,
         status: 'The pasted payload was rejected.',
       });
@@ -101,13 +158,13 @@ export function App() {
 
     const nextUrl = payloadToUrl(
       result.value,
-      payloadState.environment,
+      selectedSpaceId,
       window.location.href,
     );
     window.history.replaceState(null, '', nextUrl);
     setPayloadState({
       payload: result.value,
-      environment: payloadState.environment,
+      environment: selectedSpaceId,
       error: null,
       status: 'Loaded from pasted JSON.',
     });
@@ -117,7 +174,7 @@ export function App() {
   };
 
   const shareUrl = payloadState.payload
-    ? payloadToUrl(payloadState.payload, payloadState.environment, window.location.href)
+    ? payloadToUrl(payloadState.payload, selectedSpaceId, window.location.href)
     : '';
 
   const copyLink = async () => {
@@ -145,10 +202,33 @@ export function App() {
 
   return (
     <main className="app-shell">
-      <PackspaceScene controlsRef={controlsRef} object={sceneObject} />
+      <PackspaceScene
+        controlsRef={controlsRef}
+        object={sceneObject}
+        space={selectedSpace}
+        framing={sceneFraming}
+      />
 
       <section className="scene-info" aria-label="Payload and scene information">
-        <p className="eyebrow">Packspace / empty space</p>
+        <p className="eyebrow">Packspace / {selectedSpace.category}</p>
+        <label className="space-picker">
+          <span>Space</span>
+          <select
+            aria-label="Space"
+            value={selectedSpaceId}
+            onChange={(event) => changeSpace(event.target.value as SpaceId)}
+          >
+            {SPACE_CATEGORIES.map((category) => (
+              <optgroup label={category} key={category}>
+                {SPACE_CATALOG.filter((space) => space.category === category).map((space) => (
+                  <option value={space.id} key={space.id}>
+                    {space.shortName}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
         <h1>{payloadState.payload?.name ?? 'Payload needs attention.'}</h1>
 
         {payloadState.payload ? (
@@ -204,6 +284,8 @@ export function App() {
         <p className="payload-status" aria-live="polite">
           {copyStatus || payloadState.status}
         </p>
+
+        <SpaceEvidencePanel space={selectedSpace} />
 
         {editorOpen && (
           <form
