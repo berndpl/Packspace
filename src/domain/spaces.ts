@@ -31,6 +31,23 @@ export interface SpaceDimensions {
   depth: AxisEvidence;
 }
 
+export type OperatorPolicy =
+  | {
+      kind: 'shinkansen-dimensions';
+      name: string;
+      source: string;
+    }
+  | {
+      kind: 'airline-box';
+      name: string;
+      source: string;
+      limits_cm: {
+        w: number;
+        h: number;
+        d: number;
+      };
+    };
+
 export interface SpaceDefinition {
   id: SpaceId;
   category: 'Reference' | 'Shinkansen' | 'Plane';
@@ -39,12 +56,14 @@ export interface SpaceDefinition {
   description: string;
   kind: 'reference' | 'physical' | 'policy-envelope';
   dimensions: SpaceDimensions | null;
+  policy?: OperatorPolicy;
   placement: Position3;
   framing: SceneFraming;
 }
 
 const JR_SOURCE = 'https://global.jr-central.co.jp/en/info/oversized-baggage/';
 const RESEARCH_SOURCE = 'https://github.com/berndpl/Packspace/issues/2';
+const AA_SOURCE = 'https://www.aa.com/i18n/travel-info/baggage/carry-on-baggage.html';
 
 export const DEFAULT_SPACE_ID: SpaceId = 'shinkansen-overhead';
 
@@ -96,6 +115,11 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
         note: 'JR Central says the Tokaido Shinkansen rack extends back approximately 42 cm.',
       },
     },
+    policy: {
+      kind: 'shinkansen-dimensions',
+      name: 'Tokaido–Sanyo–Kyushu Shinkansen dimensional rule',
+      source: JR_SOURCE,
+    },
     placement: [0, 1.42, 0],
     framing: {
       target: [0, 1.34, 0],
@@ -134,6 +158,11 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
         source: JR_SOURCE,
         note: 'Published component; this is an allowance box rather than measured interior geometry.',
       },
+    },
+    policy: {
+      kind: 'shinkansen-dimensions',
+      name: 'Tokaido–Sanyo–Kyushu Shinkansen dimensional rule',
+      source: JR_SOURCE,
     },
     placement: [0, 0, 0],
     framing: {
@@ -176,6 +205,11 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
         note: 'Inferred cross-car width; use as a rough planning model only.',
       },
     },
+    policy: {
+      kind: 'shinkansen-dimensions',
+      name: 'Tokaido–Sanyo–Kyushu Shinkansen dimensional rule',
+      source: JR_SOURCE,
+    },
     placement: [0, 0, 0],
     framing: {
       target: [0, 0.8, 0],
@@ -217,6 +251,12 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
         note: 'Common narrowbody estimate; not an Airbus or Boeing published interior dimension.',
       },
     },
+    policy: {
+      kind: 'airline-box',
+      name: 'American Airlines carry-on dimensions',
+      source: AA_SOURCE,
+      limits_cm: { w: 35.6, h: 55.9, d: 22.9 },
+    },
     placement: [0, 1.42, 0],
     framing: {
       target: [0, 1.35, 0],
@@ -255,6 +295,12 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
         source: RESEARCH_SOURCE,
         note: 'Common passenger measurement; usable depth varies by row and airline.',
       },
+    },
+    policy: {
+      kind: 'airline-box',
+      name: 'American Airlines personal-item dimensions',
+      source: AA_SOURCE,
+      limits_cm: { w: 45.7, h: 35.6, d: 20.3 },
     },
     placement: [0, 0, 0],
     framing: {

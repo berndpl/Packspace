@@ -8,6 +8,7 @@ import {
   type PackspacePayload,
   type PayloadError,
 } from './domain/payload';
+import { evaluatePolicy, fitObjectToSpace, type FitResult } from './domain/fit';
 import {
   SPACE_CATALOG,
   getSpace,
@@ -15,6 +16,10 @@ import {
   type SpaceId,
 } from './domain/spaces';
 import { SpaceEvidencePanel } from './components/SpaceEvidencePanel';
+import {
+  FitVerdictPanel,
+  type PoseMode,
+} from './components/FitVerdictPanel';
 import { PackspaceScene, snapCamera, type CameraView } from './scene/PackspaceScene';
 import { narrowViewportFraming } from './scene/framing';
 
@@ -91,6 +96,7 @@ export function App() {
   const [editorOpen, setEditorOpen] = useState(initial.payload === null);
   const [copyStatus, setCopyStatus] = useState('');
   const [activeView, setActiveView] = useState<CameraView>('free');
+  const [poseMode, setPoseMode] = useState<PoseMode>('best');
   const [selectedSpaceId, setSelectedSpaceId] = useState<SpaceId>(
     resolveSpaceId(initial.environment),
   );
@@ -103,6 +109,25 @@ export function App() {
         : selectedSpace.framing,
     [narrowViewport, selectedSpace],
   );
+  const objectDimensions = payloadState.payload?.dimensions_cm;
+  const fitResult = useMemo(
+    () =>
+      objectDimensions
+        ? fitObjectToSpace(objectDimensions, selectedSpace)
+        : null,
+    [objectDimensions, selectedSpace],
+  );
+  const policyResult = useMemo(
+    () =>
+      objectDimensions
+        ? evaluatePolicy(objectDimensions, selectedSpace.policy)
+        : null,
+    [objectDimensions, selectedSpace.policy],
+  );
+
+  useEffect(() => {
+    setPoseMode('best');
+  }, [payloadState.payload, selectedSpaceId]);
 
   useEffect(() => {
     const loadHash = () => {
@@ -192,11 +217,8 @@ export function App() {
   const sceneObject = payloadState.payload
     ? {
         name: payloadState.payload.name,
-        dimensions: {
-          width: payloadState.payload.dimensions_cm.w,
-          height: payloadState.payload.dimensions_cm.h,
-          depth: payloadState.payload.dimensions_cm.d,
-        },
+        dimensions: displayedDimensions(payloadState.payload, fitResult, poseMode),
+        color: verdictColor(fitResult),
       }
     : null;
 
@@ -321,7 +343,37 @@ export function App() {
         ))}
       </nav>
 
-      <p className="orbit-hint">Drag to orbit · Shift-drag to pan · Scroll to zoom</p>
+      {fitResult && policyResult && (
+        <FitVerdictPanel
+          fit={fitResult}
+          policy={policyResult}
+          policyDefinition={selectedSpace.policy}
+          poseMode={poseMode}
+          onPoseModeChange={setPoseMode}
+        />
+      )}
     </main>
   );
+}
+
+function displayedDimensions(
+  payload: PackspacePayload,
+  fit: FitResult | null,
+  poseMode: PoseMode,
+) {
+  if (poseMode === 'best' && fit && fit.kind !== 'reference') {
+    return fit.orientedDimensions;
+  }
+  return {
+    width: payload.dimensions_cm.w,
+    height: payload.dimensions_cm.h,
+    depth: payload.dimensions_cm.d,
+  };
+}
+
+function verdictColor(fit: FitResult | null) {
+  if (!fit || fit.kind === 'reference') return '#5ad2ff';
+  if (fit.kind === 'fits') return '#6ee7b7';
+  if (fit.kind === 'fails') return '#ff7a6b';
+  return '#ffc857';
 }

@@ -8,6 +8,7 @@ import type { Position3 } from '../domain/spaces';
 export interface SceneObject {
   name: string;
   dimensions: DimensionsCm;
+  color?: string;
 }
 
 export function ObjectBox({
@@ -36,14 +37,15 @@ export function ObjectBox({
   const halfWidth = world.width / 2;
   const halfDepth = world.depth / 2;
   const guideGap = 0.08;
+  const color = object.color ?? '#5ad2ff';
 
   return (
     <group position={basePosition}>
       <mesh position-y={world.height / 2} geometry={geometry}>
-        <meshStandardMaterial color="#5ad2ff" transparent opacity={0.15} roughness={0.75} />
+        <meshStandardMaterial color={color} transparent opacity={0.15} roughness={0.75} />
       </mesh>
       <lineSegments position-y={world.height / 2} geometry={edges}>
-        <lineBasicMaterial color="#5ad2ff" />
+        <lineBasicMaterial color={color} />
       </lineSegments>
 
       <Billboard position={[0, world.height + 0.13, 0]} follow>
@@ -63,18 +65,21 @@ export function ObjectBox({
         start={[-halfWidth, 0, -halfDepth - guideGap]}
         end={[halfWidth, 0, -halfDepth - guideGap]}
         label={`${dimensions.width} cm`}
+        color={color}
         labelOffset={[0, -0.055, 0]}
       />
       <DimensionGuide
         start={[-halfWidth - guideGap, 0, -halfDepth]}
         end={[-halfWidth - guideGap, world.height, -halfDepth]}
         label={`${dimensions.height} cm`}
+        color={color}
         labelOffset={[-0.07, 0, 0]}
       />
       <DimensionGuide
         start={[halfWidth + guideGap, 0, -halfDepth]}
         end={[halfWidth + guideGap, 0, halfDepth]}
         label={`${dimensions.depth} cm`}
+        color={color}
         labelOffset={[0.07, 0, 0]}
       />
     </group>
