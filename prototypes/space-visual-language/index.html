@@ -1,0 +1,449 @@
+<!doctype html>
+<!--
+  PROTOTYPE — THROWAWAY. Answers issue #6: "How abstract is 'abstract but still recognisable'?"
+
+  Three radically different visual languages for a Packspace space, switchable via ?variant=A|B|C.
+  Deliberately plain three.js from a CDN rather than the decided R3F stack — this is disposable
+  probe code, not the app.
+
+  Space modelled: Tokaido Shinkansen overhead luggage rack.
+    depth  42 cm — PUBLISHED by JR Central
+    width  90 cm — ESTIMATED, no primary source
+    height 32 cm — ESTIMATED, no primary source
+  Object: Rimowa Essential Cabin S, 40 x 55 x 23 cm (does NOT fit upright — 55 > 32).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Packspace — space visual language prototype</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  #app { position:fixed; inset:0; }
+  canvas { display:block; }
+
+  /* floating prototype switcher */
+  #bar {
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+    display:flex; gap:6px; align-items:center; z-index:50;
+    background:rgba(20,20,22,.88); backdrop-filter:blur(10px);
+    padding:6px; border-radius:999px; border:1px solid rgba(255,255,255,.14);
+  }
+  #bar button {
+    font:inherit; font-size:12px; letter-spacing:.02em;
+    color:#fff; background:transparent; border:0; cursor:pointer;
+    padding:8px 14px; border-radius:999px; white-space:nowrap;
+  }
+  #bar button:hover { background:rgba(255,255,255,.12); }
+  #bar button[aria-current="true"] { background:#fff; color:#111; }
+  #bar .sep { width:1px; align-self:stretch; background:rgba(255,255,255,.18); margin:4px 4px; }
+  #bar .tag { color:rgba(255,255,255,.45); font-size:10px; text-transform:uppercase; letter-spacing:.1em; padding-left:10px; }
+
+  /* per-variant HTML overlay */
+  #overlay { position:fixed; inset:0; pointer-events:none; z-index:20; }
+  #views { position:fixed; top:18px; right:18px; display:flex; flex-direction:column; gap:6px; z-index:40; }
+  #views button {
+    font:inherit; font-size:11px; letter-spacing:.06em; text-transform:uppercase;
+    padding:7px 12px; cursor:pointer; border-radius:6px; border:1px solid currentColor;
+    background:transparent;
+  }
+  .note { position:fixed; left:18px; top:18px; z-index:30; max-width:330px; font-size:12px; line-height:1.5; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="overlay"></div>
+<div id="views"></div>
+<div id="bar">
+  <span class="tag">Prototype</span>
+  <button data-v="A">A · Blueprint</button>
+  <button data-v="B">B · Diorama</button>
+  <button data-v="C">C · Poster</button>
+  <span class="sep"></span>
+  <button id="toggleFit">Show a bag that fits</button>
+</div>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://unpkg.com/three@0.185.1/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.185.1/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------------------------------------------------------------- data
+const CM = 0.01; // 1 world unit = 1 metre
+
+// Tokaido Shinkansen overhead rack. `sure` marks a primary-sourced number.
+const SPACE = {
+  label: 'Shinkansen overhead rack',
+  w: { cm: 90, sure: false },
+  h: { cm: 32, sure: false },
+  d: { cm: 42, sure: true  },
+};
+
+const OBJECTS = {
+  fail: { name: 'Medium check-in suitcase', w: 52, h: 77, d: 30 },
+  fit:  { name: 'Soft weekender',           w: 48, h: 28, d: 25 },
+};
+
+const HUMAN_CM = 168;
+
+// ---------------------------------------------------------------- helpers
+function labelSprite(text, { color = '#fff', bg = null, size = 44, weight = 500 } = {}) {
+  const pad = 12, c = document.createElement('canvas'), x = c.getContext('2d');
+  x.font = `${weight} ${size}px ui-sans-serif, system-ui, sans-serif`;
+  const w = x.measureText(text).width;
+  c.width = Math.ceil(w + pad * 2); c.height = Math.ceil(size * 1.5);
+  x.font = `${weight} ${size}px ui-sans-serif, system-ui, sans-serif`;
+  if (bg) { x.fillStyle = bg; x.fillRect(0, 0, c.width, c.height); }
+  x.fillStyle = color; x.textBaseline = 'middle';
+  x.fillText(text, pad, c.height / 2);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  s.scale.set(c.width / c.height * 0.09, 0.09, 1);
+  s.renderOrder = 999;
+  return s;
+}
+
+// A dimension line with end ticks and a floating label — the "ruler" idea.
+function dimension(a, b, text, color, offset = new THREE.Vector3()) {
+  const g = new THREE.Group();
+  const A = a.clone().add(offset), B = b.clone().add(offset);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: .9 });
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([A, B]), mat));
+  const dir = B.clone().sub(A).normalize();
+  const tick = new THREE.Vector3(0, 1, 0).cross(dir).normalize().multiplyScalar(0.02);
+  if (tick.length() < 1e-6) tick.set(0.02, 0, 0);
+  for (const P of [A, B]) {
+    g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [P.clone().sub(tick), P.clone().add(tick)]), mat));
+  }
+  const lab = labelSprite(text, { color });
+  lab.position.copy(A.clone().add(B).multiplyScalar(0.5));
+  g.add(lab);
+  return g;
+}
+
+// Simple 168cm human: a stack of primitives. Recognisable at a glance, no detail.
+function human(material) {
+  const g = new THREE.Group();
+  const legs = new THREE.Mesh(new THREE.CapsuleGeometry(9 * CM, 62 * CM, 4, 10), material);
+  legs.position.y = 40 * CM;
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(13 * CM, 44 * CM, 4, 12), material);
+  torso.position.y = 108 * CM;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(10.5 * CM, 18, 14), material);
+  head.position.y = 155 * CM;
+  g.add(legs, torso, head);
+  return g;
+}
+
+function boxEdges(w, h, d, color, opacity = 1) {
+  const e = new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)),
+    new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity }));
+  return e;
+}
+
+// ---------------------------------------------------------------- fit logic (rough — issue #5 owns the real rule)
+function fits(obj, space) {
+  const s = [space.w.cm, space.h.cm, space.d.cm];
+  const perms = [[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+  const o = [obj.w, obj.h, obj.d];
+  const upright = o[0] <= s[0] && o[1] <= s[1] && o[2] <= s[2];
+  const any = perms.some(p => o[p[0]] <= s[0] && o[p[1]] <= s[1] && o[p[2]] <= s[2]);
+  return upright ? 'fits' : any ? 'rotated' : 'no';
+}
+
+// ---------------------------------------------------------------- scene shell
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+app.appendChild(renderer.domElement);
+
+let scene, camera, controls, current;
+
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h);
+  if (camera) { camera.aspect = w / h; camera.updateProjectionMatrix(); }
+}
+addEventListener('resize', resize);
+
+function newScene(bg, camPos = [1.7, 1.25, 2.1], target = [0, 0.75, 0]) {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(bg);
+  camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.05, 100);
+  camera.position.set(...camPos);
+  if (controls) controls.dispose();
+  controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(...target);
+  VIEWS.Free = camPos;
+  VIEWS.Front = [0, target[1], camPos[2] + 1.2];
+  VIEWS.Side  = [camPos[2] + 1.2, target[1], 0];
+  VIEWS.Top   = [0.001, target[1] + 2.6, 0];
+  controls.enableDamping = true;
+  resize();
+  return scene;
+}
+
+// snap-to-view — the brief asks for this alongside free orbit
+const VIEWS = {
+  Front: [0, 0.75, 3.0],
+  Side:  [3.0, 0.75, 0],
+  Top:   [0.001, 3.4, 0],
+  Free:  [1.7, 1.25, 2.1],
+};
+function snap(name) {
+  const [x, y, z] = VIEWS[name];
+  const from = camera.position.clone(), to = new THREE.Vector3(x, y, z);
+  const t0 = performance.now();
+  (function step() {
+    const k = Math.min(1, (performance.now() - t0) / 480);
+    const e = 1 - Math.pow(1 - k, 3);
+    camera.position.lerpVectors(from, to, e);
+    controls.update();
+    if (k < 1) requestAnimationFrame(step);
+  })();
+}
+
+// ================================================================ VARIANT A — BLUEPRINT
+// Everything measured, always. Technical drawing. The space is implied by lines only.
+function variantA(obj) {
+  const s = newScene('#0a1622', [2.0, 1.5, 2.4], [0, 0.95, 0]);
+  const ACCENT = '#5ad2ff', DIM = '#2a4a63', WARN = '#ff7a6b', AMBER = '#ffc857';
+
+  const grid = new THREE.GridHelper(4, 40, ACCENT, DIM);
+  grid.material.opacity = .25; grid.material.transparent = true;
+  s.add(grid);
+
+  const W = SPACE.w.cm * CM, H = SPACE.h.cm * CM, D = SPACE.d.cm * CM;
+  const shelfY = 1.0; // rack sits above head height
+
+  // the space: wireframe only
+  const cage = boxEdges(W, H, D, ACCENT);
+  cage.position.y = shelfY + H / 2;
+  s.add(cage);
+  // hatched "floor" of the rack so it reads as a shelf, not a floating box
+  const hatch = new THREE.Mesh(new THREE.PlaneGeometry(W, D),
+    new THREE.MeshBasicMaterial({ color: ACCENT, transparent: true, opacity: .07, side: THREE.DoubleSide }));
+  hatch.rotation.x = -Math.PI / 2; hatch.position.y = shelfY;
+  s.add(hatch);
+
+  // the object
+  const v = fits(obj, SPACE);
+  const col = v === 'no' ? WARN : v === 'rotated' ? AMBER : ACCENT;
+  const ow = obj.w * CM, oh = obj.h * CM, od = obj.d * CM;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(ow, oh, od),
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .16 }));
+  box.position.set(0, shelfY + oh / 2, 0);
+  const boxEd = boxEdges(ow, oh, od, col);
+  boxEd.position.copy(box.position);
+  s.add(box, boxEd);
+
+  // dimension lines — every one, always on. `~` marks an estimated number.
+  const y0 = shelfY, hw = W / 2, hd = D / 2;
+  s.add(dimension(new THREE.Vector3(-hw, y0, hd), new THREE.Vector3(hw, y0, hd),
+    `~${SPACE.w.cm} cm`, SPACE.w.sure ? ACCENT : WARN, new THREE.Vector3(0, -.03, .06)));
+  s.add(dimension(new THREE.Vector3(hw, y0, hd), new THREE.Vector3(hw, y0 + H, hd),
+    `~${SPACE.h.cm} cm`, SPACE.h.sure ? ACCENT : WARN, new THREE.Vector3(.06, 0, 0)));
+  s.add(dimension(new THREE.Vector3(-hw, y0, -hd), new THREE.Vector3(-hw, y0, hd),
+    `${SPACE.d.cm} cm`, ACCENT, new THREE.Vector3(-.06, 0, 0)));
+  s.add(dimension(new THREE.Vector3(-ow / 2, shelfY, -od / 2 - .02),
+    new THREE.Vector3(-ow / 2, shelfY + oh, -od / 2 - .02), `${obj.h} cm`, col, new THREE.Vector3(-.05, 0, 0)));
+
+  // human, as an outline only
+  const hu = human(new THREE.MeshBasicMaterial({ color: DIM, wireframe: true }));
+  hu.position.x = -1.05;
+  s.add(hu);
+  s.add(dimension(new THREE.Vector3(-1.35, 0, 0), new THREE.Vector3(-1.35, HUMAN_CM * CM, 0),
+    `${HUMAN_CM} cm`, DIM));
+
+  overlay(`
+    <div class="note" style="color:#9fd9f2;font-family:ui-monospace,SFMono-Regular,Menlo,monospace">
+      <div style="font-size:11px;letter-spacing:.14em;opacity:.6">SPACE</div>
+      <div style="font-size:15px;margin:2px 0 10px">${SPACE.label}</div>
+      <div style="opacity:.75">Every dimension is drawn and labelled. Numbers in
+      <span style="color:${WARN}">red</span> are <b>estimated</b> — no operator publishes them.
+      Only <b>42&nbsp;cm depth</b> is primary-sourced.</div>
+      <div style="margin-top:14px;font-size:22px;color:${col}">
+        ${v === 'no' ? 'DOES NOT FIT' : v === 'rotated' ? 'FITS IF ROTATED' : 'FITS'}
+      </div>
+      <div style="opacity:.6;margin-top:2px">${obj.name} · ${obj.w}×${obj.h}×${obj.d} cm</div>
+    </div>`, ACCENT);
+  return s;
+}
+
+// ================================================================ VARIANT B — DIORAMA
+// A soft physical model. The carriage is suggested with real geometry, warmly lit.
+// Measurements are summoned, not permanent.
+function variantB(obj) {
+  const s = newScene('#efe7dc', [2.5, 1.9, 3.0], [0, 1.25, -0.1]);
+  s.add(new THREE.HemisphereLight(0xffffff, 0xd8cbb8, 1.6));
+  const key = new THREE.DirectionalLight(0xfff4e2, 1.5);
+  key.position.set(2.4, 4, 2.6); s.add(key);
+
+  const shell = new THREE.MeshStandardMaterial({ color: 0xe4dccf, roughness: .95, metalness: 0 });
+  const seatM = new THREE.MeshStandardMaterial({ color: 0x5d6b7a, roughness: .85 });
+
+  // floor
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(2.6, 64),
+    new THREE.MeshStandardMaterial({ color: 0xdcd2c3, roughness: 1 }));
+  floor.rotation.x = -Math.PI / 2; s.add(floor);
+
+  // suggested carriage wall + curved ceiling — enough to read as "train", no more
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(3.0, 2.6, .06), shell);
+  wall.position.set(0, 1.3, -.62); s.add(wall);
+  const ceil = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 2.6, 28, 1, true, Math.PI, Math.PI * .55), shell);
+  ceil.rotation.z = Math.PI / 2; ceil.position.set(0, 2.0, .2);
+  ceil.material.side = THREE.DoubleSide; s.add(ceil);
+
+  // two seat backs below the rack — the recognisability cue
+  for (const x of [-.55, .55]) {
+    const back = new THREE.Mesh(new THREE.BoxGeometry(.48, .62, .12), seatM);
+    back.position.set(x, .78, -.15); back.rotation.x = -.09; s.add(back);
+    const base = new THREE.Mesh(new THREE.BoxGeometry(.48, .1, .46), seatM);
+    base.position.set(x, .45, .06); s.add(base);
+  }
+
+  // the rack itself: a real shelf with a lip
+  const W = SPACE.w.cm * CM, H = SPACE.h.cm * CM, D = SPACE.d.cm * CM, shelfY = 1.62;
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(W + .1, .025, D + .04),
+    new THREE.MeshStandardMaterial({ color: 0xcfc6b7, roughness: .8 }));
+  deck.position.set(0, shelfY, -.2); s.add(deck);
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(W + .1, .05, .02),
+    new THREE.MeshStandardMaterial({ color: 0xb9ae9c, roughness: .8 }));
+  lip.position.set(0, shelfY + .035, -.2 + D / 2); s.add(lip);
+
+  // the object, solid
+  const v = fits(obj, SPACE);
+  const ow = obj.w * CM, oh = obj.h * CM, od = obj.d * CM;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(ow, oh, od),
+    new THREE.MeshStandardMaterial({ color: v === 'no' ? 0xd05a48 : v === 'rotated' ? 0xd9a441 : 0x3f7d68, roughness: .6 }));
+  box.position.set(0, shelfY + .013 + oh / 2, -.2); s.add(box);
+
+  // overflow made physical: the part that doesn't fit pokes through, ghosted
+  {
+    const over = (obj.h * CM) - H;
+    if (over > 0) {
+      const ghost = new THREE.Mesh(new THREE.BoxGeometry(ow + .004, over, od + .004),
+        new THREE.MeshStandardMaterial({ color: 0xd05a48, transparent: true, opacity: .3 }));
+      ghost.position.set(0, shelfY + H + over / 2, -.2); s.add(ghost);
+    }
+  }
+
+  const hu = human(new THREE.MeshStandardMaterial({ color: 0x8c8378, roughness: 1 }));
+  hu.position.set(-1.15, 0, .25); s.add(hu);
+
+  overlay(`
+    <div class="note" style="color:#3c3630">
+      <div style="font-size:11px;letter-spacing:.14em;opacity:.55">SPACE</div>
+      <div style="font-size:15px;margin:2px 0 10px">${SPACE.label}</div>
+      <div style="opacity:.75">The carriage is suggested — a wall, a curved ceiling, two seat backs.
+      Measurements stay off until asked for; the eye judges the fit first.</div>
+      <div style="margin-top:14px;font-size:22px;color:${v === 'no' ? '#b8402c' : v === 'rotated' ? '#9a6b16' : '#2f6b57'}">
+        ${v === 'no' ? 'Does not fit' : v === 'rotated' ? 'Fits if rotated' : 'Fits'}
+      </div>
+      <div style="opacity:.6;margin-top:2px">${obj.name} · ${obj.w}×${obj.h}×${obj.d} cm</div>
+      ${v === 'no' ? `<div style="opacity:.6;margin-top:6px">The overhang is drawn as ghosted volume
+        rather than stated as a number.</div>` : ''}
+    </div>`, '#3c3630');
+  return s;
+}
+
+// ================================================================ VARIANT C — POSTER
+// No vehicle at all. The space is a lit void. Verdict is typographic and enormous.
+function variantC(obj) {
+  const s = newScene('#0e0e10', [1.9, 1.35, 2.3], [0, 0.9, 0]);
+  const ACC = '#f5f2ea', GOOD = '#7ee0a8', BAD = '#ff5f5a', AMBER = '#ffc857';
+
+  const W = SPACE.w.cm * CM, H = SPACE.h.cm * CM, D = SPACE.d.cm * CM;
+  const y0 = .85;
+
+  // the space as a negative volume: glowing edges, faint interior, nothing else
+  const cage = boxEdges(W, H, D, ACC);
+  cage.position.y = y0 + H / 2; s.add(cage);
+  const fill = new THREE.Mesh(new THREE.BoxGeometry(W, H, D),
+    new THREE.MeshBasicMaterial({ color: ACC, transparent: true, opacity: .04 }));
+  fill.position.y = y0 + H / 2; s.add(fill);
+
+  const v = fits(obj, SPACE);
+  const ow = obj.w * CM, oh = obj.h * CM, od = obj.d * CM;
+  const box = new THREE.Mesh(new THREE.BoxGeometry(ow, oh, od),
+    new THREE.MeshBasicMaterial({ color: v === 'no' ? BAD : v === 'rotated' ? AMBER : GOOD }));
+  box.position.set(0, y0 + oh / 2, 0); s.add(box);
+
+  // one scale bar, not a grid — a single reference, poster-style
+  const bar = dimension(new THREE.Vector3(-W / 2, y0 - .12, D / 2),
+    new THREE.Vector3(-W / 2 + .5, y0 - .12, D / 2), '50 cm', ACC);
+  s.add(bar);
+
+  const hu = human(new THREE.MeshBasicMaterial({ color: 0x35353a }));
+  hu.position.x = -1.0; s.add(hu);
+
+  const verdict = v === 'no' ? 'NO' : v === 'rotated' ? 'ROTATE' : 'YES';
+  overlay(`
+    <div style="position:fixed;left:0;right:0;top:16%;text-align:center;color:${v === 'no' ? BAD : v === 'rotated' ? AMBER : GOOD};
+                font-size:min(${verdict.length > 3 ? 13 : 21}vw,220px);font-weight:800;letter-spacing:-.04em;line-height:.85;
+                mix-blend-mode:screen;opacity:.92">${verdict}</div>
+    <div style="position:fixed;left:0;right:0;bottom:78px;text-align:center;color:${ACC};opacity:.8;font-size:13px">
+      ${obj.name} · ${obj.w}×${obj.h}×${obj.d} cm &nbsp;→&nbsp; ${SPACE.label}
+    </div>
+    <div class="note" style="color:${ACC};opacity:.55">
+      No vehicle is drawn at all. The space is a lit void; the verdict is the loudest thing on screen.
+      One scale bar instead of a grid.
+    </div>`, ACC);
+  return s;
+}
+
+// ---------------------------------------------------------------- chrome
+function overlay(html, viewColor) {
+  document.getElementById('overlay').innerHTML = html;
+  const v = document.getElementById('views');
+  v.innerHTML = '';
+  for (const name of Object.keys(VIEWS)) {
+    const b = document.createElement('button');
+    b.textContent = name; b.style.color = viewColor;
+    b.onclick = () => snap(name);
+    v.appendChild(b);
+  }
+}
+
+const VARIANTS = { A: variantA, B: variantB, C: variantC };
+let showFit = false;
+
+function render(v) {
+  current = v;
+  const obj = showFit ? OBJECTS.fit : OBJECTS.fail;
+  VARIANTS[v](obj);
+  for (const b of document.querySelectorAll('#bar button[data-v]'))
+    b.setAttribute('aria-current', String(b.dataset.v === v));
+  const url = new URL(location.href);
+  url.searchParams.set('variant', v);
+  history.replaceState(null, '', url);
+}
+
+for (const b of document.querySelectorAll('#bar button[data-v]'))
+  b.onclick = () => render(b.dataset.v);
+
+document.getElementById('toggleFit').onclick = (e) => {
+  showFit = !showFit;
+  e.target.textContent = showFit ? 'Show a bag that fails' : 'Show a bag that fits';
+  render(current);
+};
+
+render(new URL(location.href).searchParams.get('variant') || 'A');
+
+(function loop() {
+  requestAnimationFrame(loop);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
