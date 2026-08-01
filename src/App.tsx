@@ -1,12 +1,22 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CameraControls as CameraControlsRef } from '@react-three/drei';
+import {
+  parsePayloadFragment,
+  parsePayloadJson,
+  payloadToJson,
+  payloadToUrl,
+  type PackspacePayload,
+  type PayloadError,
+} from './domain/payload';
 import { PackspaceScene, snapCamera, type CameraView } from './scene/PackspaceScene';
-import type { DimensionsCm } from './scene/measurements';
 
-const DEFAULT_OBJECT: DimensionsCm = {
-  width: 40,
-  height: 55,
-  depth: 23,
+const DEFAULT_PAYLOAD: PackspacePayload = {
+  schema: 'packspace.object/1',
+  name: 'Brompton C Line Explore',
+  dimensions_cm: { w: 58.5, h: 64.5, d: 27 },
+  measured: 'folded',
+  confidence: 'published',
+  source: 'https://www.brompton.com/p/771/c-line-explore',
 };
 
 const VIEWS: ReadonlyArray<{ id: CameraView; label: string }> = [
@@ -16,68 +26,204 @@ const VIEWS: ReadonlyArray<{ id: CameraView; label: string }> = [
   { id: 'free', label: 'Free' },
 ];
 
+interface PayloadState {
+  payload: PackspacePayload | null;
+  environment?: string;
+  error: PayloadError | null;
+  status: string;
+}
+
+function payloadStateFromHash(hash: string): PayloadState {
+  const result = parsePayloadFragment(hash);
+  if (result === null) {
+    return {
+      payload: DEFAULT_PAYLOAD,
+      error: null,
+      status: 'Showing an example payload.',
+    };
+  }
+  if (!result.ok) {
+    return {
+      payload: null,
+      error: result.error,
+      status: 'The link payload was rejected.',
+    };
+  }
+  return {
+    payload: result.value.payload,
+    environment: result.value.environment,
+    error: null,
+    status: 'Loaded from the link.',
+  };
+}
+
 export function App() {
   const controlsRef = useRef<CameraControlsRef>(null);
-  const [dimensions, setDimensions] = useState(DEFAULT_OBJECT);
+  const initial = payloadStateFromHash(window.location.hash);
+  const [payloadState, setPayloadState] = useState(initial);
+  const [jsonText, setJsonText] = useState(
+    initial.payload ? payloadToJson(initial.payload) : '',
+  );
+  const [editorOpen, setEditorOpen] = useState(initial.payload === null);
+  const [copyStatus, setCopyStatus] = useState('');
   const [activeView, setActiveView] = useState<CameraView>('free');
 
-  const updateDimension = (key: keyof DimensionsCm, rawValue: string) => {
-    const value = Number(rawValue);
-    if (!Number.isFinite(value)) return;
+  useEffect(() => {
+    const loadHash = () => {
+      const next = payloadStateFromHash(window.location.hash);
+      setPayloadState(next);
+      setJsonText(next.payload ? payloadToJson(next.payload) : '');
+      setEditorOpen(next.payload === null);
+      setCopyStatus('');
+    };
 
-    setDimensions((current) => ({
-      ...current,
-      [key]: Math.min(300, Math.max(1, value)),
-    }));
-  };
+    window.addEventListener('hashchange', loadHash);
+    return () => window.removeEventListener('hashchange', loadHash);
+  }, []);
 
   const changeView = (view: CameraView) => {
     setActiveView(view);
     void snapCamera(controlsRef.current, view);
   };
 
+  const loadJson = () => {
+    const result = parsePayloadJson(jsonText);
+    if (!result.ok) {
+      setPayloadState({
+        payload: null,
+        environment: payloadState.environment,
+        error: result.error,
+        status: 'The pasted payload was rejected.',
+      });
+      setCopyStatus('');
+      return;
+    }
+
+    const nextUrl = payloadToUrl(
+      result.value,
+      payloadState.environment,
+      window.location.href,
+    );
+    window.history.replaceState(null, '', nextUrl);
+    setPayloadState({
+      payload: result.value,
+      environment: payloadState.environment,
+      error: null,
+      status: 'Loaded from pasted JSON.',
+    });
+    setJsonText(payloadToJson(result.value));
+    setEditorOpen(false);
+    setCopyStatus('');
+  };
+
+  const shareUrl = payloadState.payload
+    ? payloadToUrl(payloadState.payload, payloadState.environment, window.location.href)
+    : '';
+
+  const copyLink = async () => {
+    if (!shareUrl) return;
+
+    try {
+      if (!navigator.clipboard) throw new Error('Clipboard API is unavailable.');
+      await navigator.clipboard.writeText(shareUrl);
+      setCopyStatus('Link copied.');
+    } catch {
+      setCopyStatus('Clipboard blocked — select the link below and copy it manually.');
+    }
+  };
+
+  const sceneObject = payloadState.payload
+    ? {
+        name: payloadState.payload.name,
+        dimensions: {
+          width: payloadState.payload.dimensions_cm.w,
+          height: payloadState.payload.dimensions_cm.h,
+          depth: payloadState.payload.dimensions_cm.d,
+        },
+      }
+    : null;
+
   return (
     <main className="app-shell">
-      <PackspaceScene
-        controlsRef={controlsRef}
-        object={{
-          name: 'Example object',
-          dimensions,
-        }}
-      />
+      <PackspaceScene controlsRef={controlsRef} object={sceneObject} />
 
-      <section className="scene-info" aria-label="Scene information">
+      <section className="scene-info" aria-label="Payload and scene information">
         <p className="eyebrow">Packspace / empty space</p>
-        <h1>Read the size from any angle.</h1>
-        <p className="scene-description">
-          The blueprint shell uses one world unit per metre. Every value you enter stays in
-          centimetres and is converted at the scene boundary.
+        <h1>{payloadState.payload?.name ?? 'Payload needs attention.'}</h1>
+
+        {payloadState.payload ? (
+          <>
+            <p className="scene-description">
+              {payloadState.payload.dimensions_cm.w} × {payloadState.payload.dimensions_cm.h} ×{' '}
+              {payloadState.payload.dimensions_cm.d} cm ·{' '}
+              {payloadState.payload.measured.replace('_', ' ')} ·{' '}
+              {payloadState.payload.confidence}
+            </p>
+            <a
+              className="source-link"
+              href={payloadState.payload.source}
+              target="_blank"
+              rel="noreferrer"
+            >
+              View dimension source ↗
+            </a>
+          </>
+        ) : (
+          <p className="scene-description">
+            Nothing is rendered until every required field is valid.
+          </p>
+        )}
+
+        {payloadState.error && (
+          <p className="payload-error" role="alert">
+            <strong>{payloadState.error.field}</strong>: {payloadState.error.message}
+          </p>
+        )}
+
+        <div className="payload-actions">
+          <button type="button" onClick={() => setEditorOpen((open) => !open)}>
+            {editorOpen ? 'Close JSON' : 'Paste JSON'}
+          </button>
+          <button type="button" onClick={copyLink} disabled={!payloadState.payload}>
+            Copy link
+          </button>
+        </div>
+
+        {shareUrl && (
+          <label className="share-row">
+            <span>Shareable link</span>
+            <input
+              aria-label="Shareable Packspace link"
+              value={shareUrl}
+              readOnly
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          </label>
+        )}
+
+        <p className="payload-status" aria-live="polite">
+          {copyStatus || payloadState.status}
         </p>
 
-        <fieldset className="dimension-controls">
-          <legend>Object dimensions</legend>
-          {(
-            [
-              ['width', 'W'],
-              ['height', 'H'],
-              ['depth', 'D'],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key}>
-              <span>{label}</span>
-              <input
-                aria-label={`${key} in centimetres`}
-                type="number"
-                min="1"
-                max="300"
-                step="1"
-                value={dimensions[key]}
-                onChange={(event) => updateDimension(key, event.target.value)}
-              />
-              <span className="unit">cm</span>
-            </label>
-          ))}
-        </fieldset>
+        {editorOpen && (
+          <form
+            className="payload-editor"
+            onSubmit={(event) => {
+              event.preventDefault();
+              loadJson();
+            }}
+          >
+            <label htmlFor="payload-json">Packspace JSON</label>
+            <textarea
+              id="payload-json"
+              value={jsonText}
+              onChange={(event) => setJsonText(event.target.value)}
+              spellCheck={false}
+              placeholder='{"schema":"packspace.object/1", ...}'
+            />
+            <button type="submit">Load object</button>
+          </form>
+        )}
       </section>
 
       <nav className="view-controls" aria-label="Camera views">

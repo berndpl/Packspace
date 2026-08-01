@@ -81,7 +81,7 @@ function CameraRig({ controlsRef, framing }: CameraRigProps) {
 
 interface PackspaceSceneProps {
   controlsRef: RefObject<CameraControlsRef | null>;
-  object: SceneObject;
+  object: SceneObject | null;
   framing?: SceneFraming;
 }
 
@@ -123,7 +123,7 @@ export function PackspaceScene({
       />
 
       <HumanReference />
-      <ObjectBox object={object} />
+      {object && <ObjectBox object={object} />}
       <CameraRig controlsRef={controlsRef} framing={framing} />
     </Canvas>
   );
