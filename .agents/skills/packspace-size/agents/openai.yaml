@@ -1,0 +1,3 @@
+interface:
+  display_name: "Packspace Size"
+  short_description: "Find a product's size and open it in Packspace"
