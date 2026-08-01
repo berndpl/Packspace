@@ -20,6 +20,12 @@ export function SpaceEvidencePanel({ space }: { space: SpaceDefinition }) {
     <details className="evidence-panel">
       <summary>Sources & assumptions</summary>
       <p className="space-description">{space.description}</p>
+      {space.category !== 'Reference' && (
+        <p className="environment-note">
+          Cabin context is a representative cutaway. The highlighted volume carries the
+          dimension evidence below.
+        </p>
+      )}
 
       {space.dimensions ? (
         <div className="evidence-list">

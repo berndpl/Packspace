@@ -1,4 +1,5 @@
 import { Line } from '@react-three/drei';
+import { SCENE_COLORS } from '../design/tokens';
 import type { AxisEvidence, SpaceDefinition } from '../domain/spaces';
 import { DimensionGuide } from './DimensionGuide';
 import { confidenceLineProps, confidencePrefix } from './confidenceStyle';
@@ -102,7 +103,7 @@ function Envelope({
           key={axis}
           points={axisSegments(size, axis)}
           segments
-          color="#5d90aa"
+          color={SCENE_COLORS.space}
           transparent
           opacity={opacity}
           lineWidth={1}
@@ -112,7 +113,12 @@ function Envelope({
       {fill && (
         <mesh position-y={size.height / 2}>
           <boxGeometry args={[size.width, size.height, size.depth]} />
-          <meshBasicMaterial color="#5d90aa" transparent opacity={0.035} depthWrite={false} />
+          <meshBasicMaterial
+            color={SCENE_COLORS.space}
+            transparent
+            opacity={0.035}
+            depthWrite={false}
+          />
         </mesh>
       )}
     </group>
@@ -131,7 +137,7 @@ export function SpaceVolume({ space }: { space: SpaceDefinition }) {
   const gap = 0.14;
 
   return (
-    <group position={space.placement}>
+    <group position={space.placement} rotation-y={space.rotationY ?? 0}>
       <Envelope space={space} size={minSize} opacity={0.95} fill />
       {hasRange && <Envelope space={space} size={maxSize} opacity={0.42} fill={false} />}
 
@@ -139,7 +145,7 @@ export function SpaceVolume({ space }: { space: SpaceDefinition }) {
         start={[-maxSize.width / 2, 0, maxSize.depth / 2 + gap]}
         end={[maxSize.width / 2, 0, maxSize.depth / 2 + gap]}
         label={evidenceLabel(space.dimensions.width)}
-        color="#5d90aa"
+        color={SCENE_COLORS.space}
         confidence={space.dimensions.width.confidence}
         labelOffset={[0, -0.095, 0]}
       />
@@ -147,7 +153,7 @@ export function SpaceVolume({ space }: { space: SpaceDefinition }) {
         start={[maxSize.width / 2 + gap, 0, maxSize.depth / 2]}
         end={[maxSize.width / 2 + gap, maxSize.height, maxSize.depth / 2]}
         label={evidenceLabel(space.dimensions.height)}
-        color="#5d90aa"
+        color={SCENE_COLORS.space}
         confidence={space.dimensions.height.confidence}
         labelOffset={[0.12, 0, 0]}
       />
@@ -155,7 +161,7 @@ export function SpaceVolume({ space }: { space: SpaceDefinition }) {
         start={[-maxSize.width / 2 - gap, 0, -maxSize.depth / 2]}
         end={[-maxSize.width / 2 - gap, 0, maxSize.depth / 2]}
         label={evidenceLabel(space.dimensions.depth)}
-        color="#5d90aa"
+        color={SCENE_COLORS.space}
         confidence={space.dimensions.depth.confidence}
         labelOffset={[-0.12, 0, 0]}
       />

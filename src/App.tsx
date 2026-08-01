@@ -20,8 +20,16 @@ import {
   FitVerdictPanel,
   type PoseMode,
 } from './components/FitVerdictPanel';
-import { PackspaceScene, snapCamera, type CameraView } from './scene/PackspaceScene';
-import { narrowViewportFraming } from './scene/framing';
+import { SCENE_COLORS } from './design/tokens';
+import {
+  PackspaceScene,
+  type CameraProjection,
+  type CameraView,
+} from './scene/PackspaceScene';
+import {
+  narrowViewportFraming,
+  panelAwareFraming,
+} from './scene/framing';
 
 const DEFAULT_PAYLOAD: PackspacePayload = {
   schema: 'packspace.object/1',
@@ -71,19 +79,17 @@ function payloadStateFromHash(hash: string): PayloadState {
   };
 }
 
-function useNarrowViewport() {
-  const [narrow, setNarrow] = useState(() =>
-    window.matchMedia('(max-width: 680px)').matches,
-  );
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
 
   useEffect(() => {
-    const media = window.matchMedia('(max-width: 680px)');
-    const update = () => setNarrow(media.matches);
+    const media = window.matchMedia(query);
+    const update = () => setMatches(media.matches);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
-  }, []);
+  }, [query]);
 
-  return narrow;
+  return matches;
 }
 
 export function App() {
@@ -96,18 +102,23 @@ export function App() {
   const [editorOpen, setEditorOpen] = useState(initial.payload === null);
   const [copyStatus, setCopyStatus] = useState('');
   const [activeView, setActiveView] = useState<CameraView>('free');
+  const [projection, setProjection] =
+    useState<CameraProjection>('perspective');
   const [poseMode, setPoseMode] = useState<PoseMode>('best');
   const [selectedSpaceId, setSelectedSpaceId] = useState<SpaceId>(
     resolveSpaceId(initial.environment),
   );
   const selectedSpace = getSpace(selectedSpaceId);
-  const narrowViewport = useNarrowViewport();
+  const narrowViewport = useMediaQuery('(max-width: 680px)');
+  const panelAwareViewport = useMediaQuery('(max-width: 1120px)');
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const sceneFraming = useMemo(
-    () =>
-      narrowViewport
-        ? narrowViewportFraming(selectedSpace.framing)
-        : selectedSpace.framing,
-    [narrowViewport, selectedSpace],
+    () => {
+      if (narrowViewport) return narrowViewportFraming(selectedSpace.framing);
+      if (panelAwareViewport) return panelAwareFraming(selectedSpace.framing);
+      return selectedSpace.framing;
+    },
+    [narrowViewport, panelAwareViewport, selectedSpace],
   );
   const objectDimensions = payloadState.payload?.dimensions_cm;
   const fitResult = useMemo(
@@ -146,7 +157,6 @@ export function App() {
 
   const changeView = (view: CameraView) => {
     setActiveView(view);
-    void snapCamera(controlsRef.current, view, sceneFraming);
   };
 
   const changeSpace = (spaceId: SpaceId) => {
@@ -229,6 +239,9 @@ export function App() {
         object={sceneObject}
         space={selectedSpace}
         framing={sceneFraming}
+        projection={projection}
+        reducedMotion={reducedMotion}
+        view={activeView}
       />
 
       <section className="scene-info" aria-label="Payload and scene information">
@@ -283,24 +296,38 @@ export function App() {
         )}
 
         <div className="payload-actions">
-          <button type="button" onClick={() => setEditorOpen((open) => !open)}>
+          <button
+            className="secondary-action"
+            type="button"
+            aria-expanded={editorOpen}
+            aria-controls="payload-editor"
+            onClick={() => setEditorOpen((open) => !open)}
+          >
             {editorOpen ? 'Close JSON' : 'Paste JSON'}
           </button>
-          <button type="button" onClick={copyLink} disabled={!payloadState.payload}>
+          <button
+            className="primary-action"
+            type="button"
+            onClick={copyLink}
+            disabled={!payloadState.payload}
+          >
             Copy link
           </button>
         </div>
 
         {shareUrl && (
-          <label className="share-row">
-            <span>Shareable link</span>
-            <input
-              aria-label="Shareable Packspace link"
-              value={shareUrl}
-              readOnly
-              onFocus={(event) => event.currentTarget.select()}
-            />
-          </label>
+          <details className="share-details">
+            <summary>Manual link</summary>
+            <label className="share-row">
+              <span className="sr-only">Shareable link</span>
+              <input
+                aria-label="Shareable Packspace link"
+                value={shareUrl}
+                readOnly
+                onFocus={(event) => event.currentTarget.select()}
+              />
+            </label>
+          </details>
         )}
 
         <p className="payload-status" aria-live="polite">
@@ -311,6 +338,7 @@ export function App() {
 
         {editorOpen && (
           <form
+            id="payload-editor"
             className="payload-editor"
             onSubmit={(event) => {
               event.preventDefault();
@@ -331,16 +359,38 @@ export function App() {
       </section>
 
       <nav className="view-controls" aria-label="Camera views">
-        {VIEWS.map(({ id, label }) => (
+        <span className="projection-label">Projection</span>
+        <div className="projection-buttons" aria-label="Camera projection">
           <button
-            key={id}
             type="button"
-            aria-pressed={activeView === id}
-            onClick={() => changeView(id)}
+            aria-label="Perspective projection"
+            aria-pressed={projection === 'perspective'}
+            onClick={() => setProjection('perspective')}
           >
-            {label}
+            Persp
           </button>
-        ))}
+          <button
+            type="button"
+            aria-label="Orthographic projection"
+            aria-pressed={projection === 'orthographic'}
+            onClick={() => setProjection('orthographic')}
+          >
+            Ortho
+          </button>
+        </div>
+        <span className="view-label">View</span>
+        <div className="view-buttons">
+          {VIEWS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={activeView === id}
+              onClick={() => changeView(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </nav>
 
       {fitResult && policyResult && (
@@ -372,8 +422,8 @@ function displayedDimensions(
 }
 
 function verdictColor(fit: FitResult | null) {
-  if (!fit || fit.kind === 'reference') return '#5ad2ff';
-  if (fit.kind === 'fits') return '#6ee7b7';
-  if (fit.kind === 'fails') return '#ff7a6b';
-  return '#ffc857';
+  if (!fit || fit.kind === 'reference') return SCENE_COLORS.accent;
+  if (fit.kind === 'fits') return SCENE_COLORS.pass;
+  if (fit.kind === 'fails') return SCENE_COLORS.fail;
+  return SCENE_COLORS.caution;
 }

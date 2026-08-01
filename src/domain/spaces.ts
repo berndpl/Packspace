@@ -58,6 +58,7 @@ export interface SpaceDefinition {
   dimensions: SpaceDimensions | null;
   policy?: OperatorPolicy;
   placement: Position3;
+  rotationY?: number;
   framing: SceneFraming;
 }
 
@@ -120,14 +121,15 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
       name: 'Tokaido–Sanyo–Kyushu Shinkansen dimensional rule',
       source: JR_SOURCE,
     },
-    placement: [0, 1.42, 0],
+    placement: [1.28, 1.42, 0],
+    rotationY: Math.PI / 2,
     framing: {
-      target: [0, 1.34, 0],
+      target: [0.7, 1.2, 0],
       views: {
-        front: [0, 1.34, 3.15],
-        side: [3.15, 1.34, 0],
-        top: [0.001, 4.0, 0],
-        free: [2.15, 1.72, 2.55],
+        front: [0.3, 1.35, 4.55],
+        side: [-4.55, 1.35, 0],
+        top: [0.001, 5.2, 0],
+        free: [-3.7, 2.3, 3.85],
       },
     },
   },
@@ -164,14 +166,14 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
       name: 'Tokaido–Sanyo–Kyushu Shinkansen dimensional rule',
       source: JR_SOURCE,
     },
-    placement: [0, 0, 0],
+    placement: [1.15, 0, -1.75],
     framing: {
-      target: [0, 0.72, 0],
+      target: [0.65, 0.95, -0.45],
       views: {
-        front: [0, 0.72, 3.0],
-        side: [3.0, 0.72, 0],
-        top: [0.001, 3.2, 0],
-        free: [2.0, 1.35, 2.35],
+        front: [0.3, 1.25, 4.55],
+        side: [-4.55, 1.25, -0.45],
+        top: [0.001, 5.2, -0.45],
+        free: [-3.7, 2.3, 3.85],
       },
     },
   },
@@ -210,14 +212,15 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
       name: 'Tokaido–Sanyo–Kyushu Shinkansen dimensional rule',
       source: JR_SOURCE,
     },
-    placement: [0, 0, 0],
+    placement: [1.25, 0, 1.75],
+    rotationY: Math.PI / 2,
     framing: {
-      target: [0, 0.8, 0],
+      target: [0.65, 1.0, 0.45],
       views: {
-        front: [0, 0.8, 3.1],
-        side: [3.1, 0.8, 0],
-        top: [0.001, 3.3, 0],
-        free: [2.0, 1.4, 2.4],
+        front: [0.3, 1.3, 4.55],
+        side: [-4.55, 1.3, 0.45],
+        top: [0.001, 5.2, 0.45],
+        free: [-3.7, 2.3, 3.85],
       },
     },
   },
@@ -257,14 +260,15 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
       source: AA_SOURCE,
       limits_cm: { w: 35.6, h: 55.9, d: 22.9 },
     },
-    placement: [0, 1.42, 0],
+    placement: [1.28, 1.42, 0],
+    rotationY: Math.PI / 2,
     framing: {
-      target: [0, 1.35, 0],
+      target: [0.7, 1.2, 0],
       views: {
-        front: [0, 1.35, 3.2],
-        side: [3.2, 1.35, 0],
-        top: [0.001, 4.0, 0],
-        free: [2.2, 1.72, 2.6],
+        front: [0.3, 1.35, 4.6],
+        side: [-4.6, 1.35, 0],
+        top: [0.001, 5.25, 0],
+        free: [-3.75, 2.35, 3.9],
       },
     },
   },
@@ -302,14 +306,14 @@ export const SPACE_CATALOG: readonly SpaceDefinition[] = [
       source: AA_SOURCE,
       limits_cm: { w: 45.7, h: 35.6, d: 20.3 },
     },
-    placement: [0, 0, 0],
+    placement: [0.94, 0, 0],
     framing: {
-      target: [0, 0.62, 0],
+      target: [0.65, 0.9, 0],
       views: {
-        front: [0, 0.62, 2.8],
-        side: [2.8, 0.62, 0],
-        top: [0.001, 3.0, 0],
-        free: [1.9, 1.22, 2.25],
+        front: [0.3, 1.2, 4.45],
+        side: [-4.45, 1.2, 0],
+        top: [0.001, 5.05, 0],
+        free: [-3.6, 2.2, 3.75],
       },
     },
   },

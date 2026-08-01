@@ -35,3 +35,39 @@ export function narrowViewportFraming(framing: SceneFraming): SceneFraming {
     },
   };
 }
+
+/**
+ * Mid-size desktop windows still use the side panels. Shift the whole camera
+ * rig left so the measured volume sits in the unobstructed right-hand field.
+ */
+export function panelAwareFraming(framing: SceneFraming): SceneFraming {
+  const xOffset = -0.45;
+  const pullBack = 1.1;
+  const [targetX, targetY, targetZ] = framing.target;
+
+  return {
+    target: [targetX + xOffset, targetY, targetZ],
+    views: {
+      front: [
+        framing.views.front[0] + xOffset,
+        framing.views.front[1],
+        framing.views.front[2] * pullBack,
+      ],
+      side: [
+        framing.views.side[0] * pullBack + xOffset,
+        framing.views.side[1],
+        framing.views.side[2],
+      ],
+      top: [
+        framing.views.top[0] + xOffset,
+        framing.views.top[1] * 1.05,
+        framing.views.top[2],
+      ],
+      free: [
+        framing.views.free[0] * pullBack + xOffset,
+        framing.views.free[1],
+        framing.views.free[2] * pullBack,
+      ],
+    },
+  };
+}

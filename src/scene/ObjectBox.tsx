@@ -1,6 +1,7 @@
 import { Billboard, Text } from '@react-three/drei';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { SCENE_COLORS } from '../design/tokens';
 import { DimensionGuide } from './DimensionGuide';
 import { dimensionsToWorld, type DimensionsCm } from './measurements';
 import type { Position3 } from '../domain/spaces';
@@ -14,9 +15,11 @@ export interface SceneObject {
 export function ObjectBox({
   object,
   basePosition = [0, 0, 0],
+  rotationY = 0,
 }: {
   object: SceneObject;
   basePosition?: Position3;
+  rotationY?: number;
 }) {
   const { dimensions } = object;
   const world = dimensionsToWorld(dimensions);
@@ -37,10 +40,10 @@ export function ObjectBox({
   const halfWidth = world.width / 2;
   const halfDepth = world.depth / 2;
   const guideGap = 0.08;
-  const color = object.color ?? '#5ad2ff';
+  const color = object.color ?? SCENE_COLORS.accent;
 
   return (
-    <group position={basePosition}>
+    <group position={basePosition} rotation-y={rotationY}>
       <mesh position-y={world.height / 2} geometry={geometry}>
         <meshStandardMaterial color={color} transparent opacity={0.15} roughness={0.75} />
       </mesh>
@@ -50,7 +53,7 @@ export function ObjectBox({
 
       <Billboard position={[0, world.height + 0.13, 0]} follow>
         <Text
-          color="#9fd9f2"
+          color={SCENE_COLORS.textStrong}
           fontSize={0.06}
           anchorX="center"
           anchorY="middle"

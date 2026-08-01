@@ -1,12 +1,19 @@
+import { SCENE_COLORS } from '../design/tokens';
 import { DimensionGuide } from './DimensionGuide';
 import { CM_TO_WORLD } from './measurements';
 
 const HUMAN_HEIGHT_CM = 168;
-const HUMAN_COLOR = '#2a4a63';
+const HUMAN_COLOR = SCENE_COLORS.human;
 
-export function HumanReference({ positionX = -1.05 }: { positionX?: number }) {
+export function HumanReference({
+  positionX = -1.05,
+  positionZ = 0,
+}: {
+  positionX?: number;
+  positionZ?: number;
+}) {
   return (
-    <group position-x={positionX}>
+    <group position={[positionX, 0, positionZ]}>
       <mesh position-y={0.4}>
         <capsuleGeometry args={[0.09, 0.62, 4, 10]} />
         <meshBasicMaterial color={HUMAN_COLOR} wireframe />

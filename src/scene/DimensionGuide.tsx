@@ -1,5 +1,6 @@
 import { Billboard, Line, Text } from '@react-three/drei';
 import * as THREE from 'three';
+import { SCENE_COLORS } from '../design/tokens';
 import type { Confidence } from '../domain/payload';
 import { confidenceLineProps } from './confidenceStyle';
 
@@ -25,7 +26,7 @@ export function DimensionGuide({
   start,
   end,
   label,
-  color = '#5ad2ff',
+  color = SCENE_COLORS.accent,
   labelOffset = [0, 0, 0],
   tickLength = 0.025,
   confidence = 'published',
