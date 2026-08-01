@@ -1,5 +1,4 @@
 import { Line } from '@react-three/drei';
-import { SCENE_COLORS } from '../design/tokens';
 import type { AxisEvidence, SpaceDefinition } from '../domain/spaces';
 import { DimensionGuide } from './DimensionGuide';
 import { confidenceLineProps, confidencePrefix } from './confidenceStyle';
@@ -86,11 +85,13 @@ function evidenceLabel(axis: AxisEvidence): string {
 function Envelope({
   space,
   size,
+  color,
   opacity,
   fill,
 }: {
   space: SpaceDefinition;
   size: EnvelopeSize;
+  color: string;
   opacity: number;
   fill: boolean;
 }) {
@@ -103,7 +104,7 @@ function Envelope({
           key={axis}
           points={axisSegments(size, axis)}
           segments
-          color={SCENE_COLORS.space}
+          color={color}
           transparent
           opacity={opacity}
           lineWidth={1}
@@ -114,7 +115,7 @@ function Envelope({
         <mesh position-y={size.height / 2}>
           <boxGeometry args={[size.width, size.height, size.depth]} />
           <meshBasicMaterial
-            color={SCENE_COLORS.space}
+            color={color}
             transparent
             opacity={0.035}
             depthWrite={false}
@@ -125,7 +126,13 @@ function Envelope({
   );
 }
 
-export function SpaceVolume({ space }: { space: SpaceDefinition }) {
+export function SpaceVolume({
+  color,
+  space,
+}: {
+  color: string;
+  space: SpaceDefinition;
+}) {
   if (!space.dimensions) return null;
 
   const minSize = envelopeSize(space, 'minimum');
@@ -138,14 +145,22 @@ export function SpaceVolume({ space }: { space: SpaceDefinition }) {
 
   return (
     <group position={space.placement} rotation-y={space.rotationY ?? 0}>
-      <Envelope space={space} size={minSize} opacity={0.95} fill />
-      {hasRange && <Envelope space={space} size={maxSize} opacity={0.42} fill={false} />}
+      <Envelope color={color} space={space} size={minSize} opacity={0.95} fill />
+      {hasRange && (
+        <Envelope
+          color={color}
+          space={space}
+          size={maxSize}
+          opacity={0.42}
+          fill={false}
+        />
+      )}
 
       <DimensionGuide
         start={[-maxSize.width / 2, 0, maxSize.depth / 2 + gap]}
         end={[maxSize.width / 2, 0, maxSize.depth / 2 + gap]}
         label={evidenceLabel(space.dimensions.width)}
-        color={SCENE_COLORS.space}
+        color={color}
         confidence={space.dimensions.width.confidence}
         labelOffset={[0, -0.095, 0]}
       />
@@ -153,7 +168,7 @@ export function SpaceVolume({ space }: { space: SpaceDefinition }) {
         start={[maxSize.width / 2 + gap, 0, maxSize.depth / 2]}
         end={[maxSize.width / 2 + gap, maxSize.height, maxSize.depth / 2]}
         label={evidenceLabel(space.dimensions.height)}
-        color={SCENE_COLORS.space}
+        color={color}
         confidence={space.dimensions.height.confidence}
         labelOffset={[0.12, 0, 0]}
       />
@@ -161,7 +176,7 @@ export function SpaceVolume({ space }: { space: SpaceDefinition }) {
         start={[-maxSize.width / 2 - gap, 0, -maxSize.depth / 2]}
         end={[-maxSize.width / 2 - gap, 0, maxSize.depth / 2]}
         label={evidenceLabel(space.dimensions.depth)}
-        color={SCENE_COLORS.space}
+        color={color}
         confidence={space.dimensions.depth.confidence}
         labelOffset={[-0.12, 0, 0]}
       />

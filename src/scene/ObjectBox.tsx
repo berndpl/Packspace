@@ -15,10 +15,12 @@ export interface SceneObject {
 export function ObjectBox({
   object,
   basePosition = [0, 0, 0],
+  labelColor = SCENE_COLORS.textStrong,
   rotationY = 0,
 }: {
   object: SceneObject;
   basePosition?: Position3;
+  labelColor?: string;
   rotationY?: number;
 }) {
   const { dimensions } = object;
@@ -53,7 +55,7 @@ export function ObjectBox({
 
       <Billboard position={[0, world.height + 0.13, 0]} follow>
         <Text
-          color={SCENE_COLORS.textStrong}
+          color={labelColor}
           fontSize={0.06}
           anchorX="center"
           anchorY="middle"

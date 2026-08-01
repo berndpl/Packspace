@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SCENE_COLORS } from '../design/tokens';
+import type { ScenePalette } from '../design/tokens';
 import type { Position3, SpaceDefinition } from '../domain/spaces';
 
 type Size3 = readonly [number, number, number];
@@ -38,11 +38,13 @@ function Block({
 function Seat({
   position,
   color,
+  palette,
   kind,
   opacity = 1,
 }: {
   position: Position3;
   color: string;
+  palette: ScenePalette;
   kind: 'train' | 'plane';
   opacity?: number;
 }) {
@@ -69,7 +71,7 @@ function Seat({
       <Block
         position={[0, baseHeight + backHeight - 0.01, -cushionDepth / 2 - 0.015]}
         size={[width * 0.72, 0.18, 0.13]}
-        color={SCENE_COLORS.seatTrim}
+        color={palette.seatTrim}
         opacity={opacity}
         rotation={[-0.08, 0, 0]}
       />
@@ -78,7 +80,7 @@ function Seat({
           key={side}
           position={[side * (width / 2 + 0.025), baseHeight + 0.12, 0]}
           size={[0.045, 0.065, cushionDepth * 0.72]}
-          color={SCENE_COLORS.structure}
+          color={palette.structure}
           opacity={opacity}
         />
       ))}
@@ -87,7 +89,7 @@ function Seat({
           key={side}
           position={[side * width * 0.33, baseHeight / 2, 0.02]}
           size={[0.045, baseHeight - 0.06, 0.055]}
-          color={SCENE_COLORS.structureMuted}
+          color={palette.structureMuted}
           opacity={opacity}
         />
       ))}
@@ -95,7 +97,7 @@ function Seat({
         <Block
           position={[0, 0.22, 0.13]}
           size={[width * 0.88, 0.045, 0.055]}
-          color={SCENE_COLORS.structure}
+          color={palette.structure}
           opacity={opacity}
         />
       )}
@@ -106,11 +108,13 @@ function Seat({
 function WindowRow({
   x,
   positions,
+  palette,
   width,
   height,
 }: {
   x: number;
   positions: readonly number[];
+  palette: ScenePalette;
   width: number;
   height: number;
 }) {
@@ -121,9 +125,9 @@ function WindowRow({
           key={z}
           position={[x, 1.16, z]}
           size={[0.028, height, width]}
-          color={SCENE_COLORS.window}
+          color={palette.window}
           opacity={0.48}
-          emissive={SCENE_COLORS.window}
+          emissive={palette.window}
         />
       ))}
     </>
@@ -134,10 +138,12 @@ function CabinArch({
   radius,
   length,
   centerY,
+  palette,
 }: {
   radius: number;
   length: number;
   centerY: number;
+  palette: ScenePalette;
 }) {
   return (
     <mesh position-y={centerY} rotation-x={Math.PI / 2}>
@@ -154,7 +160,7 @@ function CabinArch({
         ]}
       />
       <meshStandardMaterial
-        color={SCENE_COLORS.structure}
+        color={palette.structure}
         side={THREE.DoubleSide}
         transparent
         opacity={0.14}
@@ -165,7 +171,7 @@ function CabinArch({
   );
 }
 
-function ShinkansenCabin() {
+function ShinkansenCabin({ palette }: { palette: ScenePalette }) {
   const rows = [
     { z: -1.15, opacity: 0.48 },
     { z: 0, opacity: 1 },
@@ -179,30 +185,37 @@ function ShinkansenCabin() {
       <Block
         position={[0.82, -0.035, 0]}
         size={[2.12, 0.07, 4.7]}
-        color={SCENE_COLORS.floor}
+        color={palette.floor}
         opacity={0.92}
       />
       <Block
         position={[-0.08, 0.012, 0]}
         size={[0.4, 0.018, 4.55]}
-        color={SCENE_COLORS.aisle}
+        color={palette.aisle}
         opacity={0.9}
       />
-      <CabinArch radius={1.88} length={4.7} centerY={0.32} />
+      <CabinArch radius={1.88} length={4.7} centerY={0.32} palette={palette} />
       <Block
         position={[1.86, 0.52, 0]}
         size={[0.06, 1.04, 4.7]}
-        color={SCENE_COLORS.structure}
+        color={palette.structure}
         opacity={0.16}
       />
-      <WindowRow x={1.84} positions={windows} width={0.82} height={0.58} />
+      <WindowRow
+        x={1.84}
+        positions={windows}
+        palette={palette}
+        width={0.82}
+        height={0.58}
+      />
 
       {rows.flatMap((row) =>
         seatXs.map((x) => (
           <Seat
             key={`${x}-${row.z}`}
             position={[x, 0, row.z]}
-            color={SCENE_COLORS.trainSeat}
+            color={palette.trainSeat}
+            palette={palette}
             kind="train"
             opacity={row.opacity}
           />
@@ -212,13 +225,13 @@ function ShinkansenCabin() {
       <Block
         position={[1.5, 1.4, 0]}
         size={[0.68, 0.065, 4.5]}
-        color={SCENE_COLORS.structure}
+        color={palette.structure}
         opacity={0.76}
       />
       <Block
         position={[1.15, 1.53, 0]}
         size={[0.04, 0.22, 4.5]}
-        color={SCENE_COLORS.seatTrim}
+        color={palette.seatTrim}
         opacity={0.72}
       />
       {windows.map((z) => (
@@ -226,28 +239,28 @@ function ShinkansenCabin() {
           key={z}
           position={[1.5, 1.62, z]}
           size={[0.035, 0.38, 0.045]}
-          color={SCENE_COLORS.structure}
+          color={palette.structure}
         />
       ))}
 
       <Block
         position={[0.34, 2.12, 0]}
         size={[0.16, 0.035, 4.45]}
-        color={SCENE_COLORS.window}
+        color={palette.window}
         opacity={0.74}
-        emissive={SCENE_COLORS.window}
+        emissive={palette.window}
       />
       <Block
         position={[0.94, 1.08, 2.36]}
         size={[1.88, 2.16, 0.05]}
-        color={SCENE_COLORS.structure}
+        color={palette.structure}
         opacity={0.13}
       />
     </group>
   );
 }
 
-function PlaneCabin() {
+function PlaneCabin({ palette }: { palette: ScenePalette }) {
   const rows = [
     { z: -1.15, opacity: 0.48 },
     { z: 0, opacity: 1 },
@@ -261,24 +274,31 @@ function PlaneCabin() {
       <Block
         position={[0.78, -0.035, 0]}
         size={[2.02, 0.07, 4.7]}
-        color={SCENE_COLORS.floor}
+        color={palette.floor}
         opacity={0.94}
       />
       <Block
         position={[-0.06, 0.012, 0]}
         size={[0.38, 0.018, 4.55]}
-        color={SCENE_COLORS.aisle}
+        color={palette.aisle}
         opacity={0.9}
       />
-      <CabinArch radius={1.78} length={4.7} centerY={0.54} />
-      <WindowRow x={1.72} positions={windows} width={0.5} height={0.38} />
+      <CabinArch radius={1.78} length={4.7} centerY={0.54} palette={palette} />
+      <WindowRow
+        x={1.72}
+        positions={windows}
+        palette={palette}
+        width={0.5}
+        height={0.38}
+      />
 
       {rows.flatMap((row) =>
         seatXs.map((x) => (
           <Seat
             key={`${x}-${row.z}`}
             position={[x, 0, row.z]}
-            color={SCENE_COLORS.planeSeat}
+            color={palette.planeSeat}
+            palette={palette}
             kind="plane"
             opacity={row.opacity}
           />
@@ -288,13 +308,13 @@ function PlaneCabin() {
       <Block
         position={[1.42, 1.65, 0]}
         size={[0.7, 0.44, 4.5]}
-        color={SCENE_COLORS.structure}
+        color={palette.structure}
         opacity={0.28}
       />
       <Block
         position={[1.06, 1.53, 0]}
         size={[0.045, 0.2, 4.5]}
-        color={SCENE_COLORS.seatTrim}
+        color={palette.seatTrim}
         opacity={0.64}
       />
       {windows.map((z) => (
@@ -302,7 +322,7 @@ function PlaneCabin() {
           key={z}
           position={[1.42, 1.65, z]}
           size={[0.72, 0.045, 0.035]}
-          color={SCENE_COLORS.structureMuted}
+          color={palette.structureMuted}
           opacity={0.82}
         />
       ))}
@@ -310,22 +330,30 @@ function PlaneCabin() {
       <Block
         position={[0.3, 2.2, 0]}
         size={[0.15, 0.035, 4.45]}
-        color={SCENE_COLORS.window}
+        color={palette.window}
         opacity={0.78}
-        emissive={SCENE_COLORS.window}
+        emissive={palette.window}
       />
       <Block
         position={[0.89, 1.08, 2.36]}
         size={[1.78, 2.16, 0.05]}
-        color={SCENE_COLORS.structure}
+        color={palette.structure}
         opacity={0.12}
       />
     </group>
   );
 }
 
-export function TravelEnvironment({ space }: { space: SpaceDefinition }) {
-  if (space.category === 'Shinkansen') return <ShinkansenCabin />;
-  if (space.category === 'Plane') return <PlaneCabin />;
+export function TravelEnvironment({
+  palette,
+  space,
+}: {
+  palette: ScenePalette;
+  space: SpaceDefinition;
+}) {
+  if (space.category === 'Shinkansen') {
+    return <ShinkansenCabin palette={palette} />;
+  }
+  if (space.category === 'Plane') return <PlaneCabin palette={palette} />;
   return null;
 }
